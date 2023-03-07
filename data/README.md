@@ -2,7 +2,6 @@
 
 Data can be downloaded from [Google Drive](https://drive.google.com/drive/folders/1KYKJBEsD0gZVjAvHSfsIer8-XWeSyJ7m?usp=sharing).
 
-Relation information file has been uploaded.
 
 
 ```
