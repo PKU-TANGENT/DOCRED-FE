@@ -1,0 +1,24 @@
+# Note: Test set labels are hidden. A 'predictions.json' file is stored after evaluation, which can be
+# uploaded to the original DocRED CodaLab challenge.
+dataset:
+  test_path: ./data/datasets/docred/dev.json
+
+model:
+  # model_path: /home/weimin/JEREX/data/runs/2022-07-06/ours_best/checkpoint/epoch=55-step=22343.ckpt
+  # model_path: /home/weimin/JEREX/data/runs/2022-10-05/23-55-34/checkpoint/epoch=54-step=21944.ckpt      content
+  model_path: /home/weimin/JEREX/data/runs/2022-10-06/16-42-16/checkpoint/epoch=56-step=22742.ckpt  # double
+  tokenizer_path: ./data/models/docred/rel_classify_multi_instance
+  encoder_config_path: ./data/models/docred/rel_classify_multi_instance
+
+inference:
+  test_batch_size: 1
+
+distribution:
+  gpus: [0, 1, 2,3]
+  accelerator: ''
+  prepare_data_per_node: false
+
+hydra:
+  run:
+    dir: ./data/runs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  output_subdir: run_config
