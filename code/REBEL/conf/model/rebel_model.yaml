@@ -1,0 +1,14 @@
+# @package _global_
+
+# model_name_or_path: '/home/weimin/rebel/src/outputs/2022-05-29/docred_joint/experiments/docred/epoch=16-step=1597.ckpt'
+# config_name: '/home/weimin/rebel/model/Rebel-large'
+# tokenizer_name: '/home/weimin/rebel/model/Rebel-large'
+model_name_or_path: '/home/weimin/rebel/model/Rebel-large'
+config_name: '/home/weimin/rebel/model/Rebel-large'
+tokenizer_name: '/home/weimin/rebel/model/Rebel-large'
+cache_dir: 
+use_fast_tokenizer: True
+
+model_revision: 'main'
+use_auth_token: False
+finetune: False
