@@ -1,0 +1,6 @@
+scikit-learn==0.23.2
+numpy==1.19.2
+matplotlib==3.3.2
+torch==1.6.0
+transformers==3.1.0
+dgl-cu102==0.4.3
