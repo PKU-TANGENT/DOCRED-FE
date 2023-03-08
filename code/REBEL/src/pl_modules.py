@@ -1,9 +1,7 @@
-from json import decoder
 from typing import Any
 import nltk
 import json
 import pytorch_lightning as pl
-import torch.nn.functional as F
 import torch
 import numpy as np
 import pandas as pd
@@ -88,35 +86,6 @@ relations_nyt = {'/people/person/nationality': 'country of citizenship', '/sport
                     '/location/country/capital': 'capital', '/business/company/place_founded': 'location of formation', 
                     '/people/person/profession': 'occupation'}
 
-def RankingLoss(score, summary_score=None, margin=0, gold_margin=0, gold_weight=1, no_gold=False, no_cand=False):
-    ones = torch.ones_like(score)
-    loss_func = torch.nn.MarginRankingLoss(0.0)
-    TotalLoss = loss_func(score, score, ones)
-    # candidate loss
-    n = score.size(1)
-    if not no_cand:
-        for i in range(1, n):
-            pos_score = score[:, :-i]
-            neg_score = score[:, i:]
-            pos_score = pos_score.contiguous().view(-1)
-            neg_score = neg_score.contiguous().view(-1)
-            ones = torch.ones_like(pos_score)
-            loss_func = torch.nn.MarginRankingLoss(margin * i)
-            loss = loss_func(pos_score, neg_score, ones)
-            TotalLoss += loss
-    if no_gold:
-        return TotalLoss
-    # gold summary loss
-    pos_score = summary_score.unsqueeze(-1).expand_as(score)
-    neg_score = score
-    pos_score = pos_score.contiguous().view(-1)
-    neg_score = neg_score.contiguous().view(-1)
-    ones = torch.ones_like(pos_score)
-    loss_func = torch.nn.MarginRankingLoss(gold_margin)
-    TotalLoss += gold_weight * loss_func(pos_score, neg_score, ones)
-    return TotalLoss
-
-
 class BasePLModule(pl.LightningModule):
 
     def __init__(self, conf, config: AutoConfig, tokenizer: AutoTokenizer, model: AutoModelForSeq2SeqLM, *args, **kwargs) -> None:
@@ -136,7 +105,7 @@ class BasePLModule(pl.LightningModule):
 
             self.loss_fn = label_smoothed_nll_loss
 
-    def forward_before(self, inputs, labels, **kwargs) -> dict:
+    def forward(self, inputs, labels, **kwargs) -> dict:
         """
         Method for the forward pass.
         'training_step', 'validation_step' and 'test_step' should call
@@ -169,100 +138,15 @@ class BasePLModule(pl.LightningModule):
         # return loss, logits
         return output_dict
 
-    def forward(self, inputs, labels, **kwargs) -> dict:
-        """
-        Method for the forward pass.
-        'training_step', 'validation_step' and 'test_step' should call
-        this method in order to compute the output predictions and the loss.
-
-        Returns:
-            output_dict: forward output containing the predictions (output logits ecc...) and the loss if any.
-
-        """
-        if self.hparams.label_smoothing == 0:
-            if self.hparams is not None and self.hparams.ignore_pad_token_for_loss:
-                # # force training to ignore pad token
-                # outputs = self.model(**inputs, use_cache=False, return_dict = True, output_hidden_states=True)
-                # logits = outputs['logits']
-                # loss = self.loss_fn(logits.view(-1, logits.shape[-1]), labels.view(-1))#, ignore_index=self.config.pad_token_id)
-
-                # 最大candidate 的数量
-                max_candidate_num = 1+8
-
-                input_ids = inputs['input_ids']
-                attention_mask = inputs['attention_mask']
-                decoder_input_ids = inputs['candidate_input_ids'][:, :max_candidate_num,:]
-                decoder_attention_mask = inputs['candidate_attention_mask'][:, :max_candidate_num, :]
-
-                batch_size = decoder_input_ids.size(0)
-                candidate_num = decoder_input_ids.size(1)
-                decoder_seq_len = decoder_input_ids.size(2)
-                input_seq_len = input_ids.size(1)
-                input_ids = input_ids.unsqueeze(1).expand(batch_size,candidate_num,-1).contiguous().view(-1, input_seq_len)
-                attention_mask = attention_mask.unsqueeze(1).expand(batch_size,candidate_num,-1).contiguous().view(-1, input_seq_len)
-                decoder_input_ids = decoder_input_ids.contiguous().view(-1, decoder_seq_len)
-                decoder_attention_mask = decoder_attention_mask.contiguous().view(-1, decoder_seq_len)
-
-                output = self.model(
-                    input_ids = input_ids,
-                    attention_mask = attention_mask,
-                    decoder_input_ids = decoder_input_ids,
-                    decoder_attention_mask = decoder_attention_mask,
-                    output_hidden_states = True
-                )
-                output = output[0] # [bz x cand_num, seq_len, word_dim]
-                output = output.view(batch_size, -1, output.size(1), output.size(2)) # [bz, cand_num, seq_len, word_dim]
-                probs = output[:, 0]
-                output = output[:, :, :-1] # truncate last token
-                candidate_id = decoder_input_ids.view(batch_size, candidate_num, decoder_seq_len)
-                cand_mask = decoder_attention_mask.view(batch_size, candidate_num, decoder_seq_len)[:, :, 1:]
-                candidate_id = candidate_id[:, :, 1:] # shift right
-                candidate_id = candidate_id.unsqueeze(-1)
-                _output = F.log_softmax(output, dim=3)
-                scores = torch.gather(_output, 3, candidate_id).squeeze(-1) # [bz, cand_num, seq_len]
-
-                cand_mask = cand_mask.float()
-
-                # 长度惩罚
-                # length_penalty = 1
-                scores = torch.mul(scores, cand_mask).sum(-1) 
-                # / ((cand_mask.sum(-1))** length_penalty) # [bz, cand_num]
-                output = {'score':scores[:, 1:], 'summary_score': scores[:, 0], 'probs':probs}
-
-                similarity, gold_similarity = output['score'], output['summary_score']
-                ranking_loss = RankingLoss(similarity, gold_similarity, 0.001, 0, 0)
-                prods = output['probs'][:, :-1]
-                gold = labels[:, :-1]
-                mle_fn = torch.nn.CrossEntropyLoss(ignore_index=1)
-                mle_loss = mle_fn(prods.transpose(1,2), gold)
-                loss = mle_loss+ranking_loss
-                return {'loss':loss, 'logits': prods}
-            else:
-                # compute usual loss via models
-                outputs = self.model(**inputs, labels=labels, use_cache=False, return_dict = True, output_hidden_states=True)
-                loss = outputs['loss']
-                logits = outputs['logits']
-        else:
-            # compute label smoothed loss
-            outputs = self.model(**inputs, use_cache=False, return_dict = True, output_hidden_states=True)
-            logits = outputs['logits']
-            lprobs = torch.nn.functional.log_softmax(logits, dim=-1)
-            # labels = torch.where(labels != -100, labels, self.config.pad_token_id)
-            labels.masked_fill_(labels == -100, self.config.pad_token_id)
-            loss, _ = self.loss_fn(lprobs, labels, self.hparams.label_smoothing, ignore_index=self.config.pad_token_id)
-        output_dict = {'loss': loss, 'logits': logits}
-        # return loss, logits
-        return output_dict
-
     def training_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         labels = batch["labels"]
-        # batch:
-        # 'attention mask' : batch_size*seq_len
-        # 'input_ids' : batch_size*seq_len
-        # 'labels' : batch_size*label_seq_len
-        # 'decoder_input_ids' : batch_size*label_seq_len
         batch["decoder_input_ids"] = torch.where(labels != -100, labels, self.config.pad_token_id)
         labels = shift_tokens_left(labels, -100)
+        # l = labels[:, :-1]
+        # input_t=self.tokenizer.batch_decode(batch['input_ids'])
+        # labels_t = self.tokenizer.batch_decode(l)
+        # print("input_t", input_t)
+        # print("labels_t", labels_t)
         forward_output = self.forward(batch, labels)
         self.log('loss', forward_output['loss'])
         if 'loss_aux' in forward_output:
@@ -285,29 +169,6 @@ class BasePLModule(pl.LightningModule):
         padded_tensor[:, : tensor.shape[-1]] = tensor
         return padded_tensor
 
-    def generate_results(self, batch, labels):
-        gen_kwargs = {
-            "max_length": self.hparams.val_max_target_length
-            if self.hparams.val_max_target_length is not None
-            else self.config.max_length,
-            "early_stopping": False,
-            "length_penalty": 0,
-            "no_repeat_ngram_size": 0,
-            "num_beams": self.hparams.eval_beams if self.hparams.eval_beams is not None else self.config.num_beams,
-            "num_return_sequences": self.hparams.eval_beams if self.hparams.eval_beams is not None else self.config.num_beams
-        }
-
-        generated_tokens = self.model.generate(
-            batch["input_ids"].to(self.model.device),
-            attention_mask=batch["attention_mask"].to(self.model.device),
-            use_cache = True,
-            **gen_kwargs,
-        )
-
-        decoded_preds = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=False)
-        decoded_labels = self.tokenizer.batch_decode(torch.where(labels != -100, labels, self.config.pad_token_id), skip_special_tokens=False)
-        return decoded_preds, decoded_labels
-
     def generate_triples(self,
         batch,
         labels,
@@ -321,7 +182,6 @@ class BasePLModule(pl.LightningModule):
             "length_penalty": 0,
             "no_repeat_ngram_size": 0,
             "num_beams": self.hparams.eval_beams if self.hparams.eval_beams is not None else self.config.num_beams,
-            # "num_return_sequences": self.hparams.eval_beams if self.hparams.eval_beams is not None else self.config.num_beams
         }
 
         generated_tokens = self.model.generate(
@@ -334,11 +194,16 @@ class BasePLModule(pl.LightningModule):
         decoded_preds = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=False)
         decoded_labels = self.tokenizer.batch_decode(torch.where(labels != -100, labels, self.config.pad_token_id), skip_special_tokens=False)
         if self.hparams.dataset_name.split('/')[-1] == 'conll04_typed.py':
+            f = open('preds_raw.txt','a')
+            for gen_sample, label_sample in zip(decoded_preds, decoded_labels):
+                f.write(str(gen_sample) + str(label_sample) +'\n')
+            f.close()
             return [extract_triplets_typed(rel) for rel in decoded_preds], [extract_triplets_typed(rel) for rel in decoded_labels]
         elif self.hparams.dataset_name.split('/')[-1] == 'nyt_typed.py':
             return [extract_triplets_typed(rel, {'<loc>': 'LOCATION', '<org>': 'ORGANIZATION', '<per>': 'PERSON'}) for rel in decoded_preds], [extract_triplets_typed(rel, {'<loc>': 'LOCATION', '<org>': 'ORGANIZATION', '<per>': 'PERSON'}) for rel in decoded_labels]
         elif self.hparams.dataset_name.split('/')[-1] == 'docred_typed.py':
-            return [extract_triplets_typed(rel, {'<loc>': 'LOC', '<misc>': 'MISC', '<per>': 'PER', '<num>': 'NUM', '<time>': 'TIME', '<org>': 'ORG'}) for rel in decoded_preds], [extract_triplets_typed(rel, {'<loc>': 'LOC', '<misc>': 'MISC', '<per>': 'PER', '<num>': 'NUM', '<time>': 'TIME', '<org>': 'ORG'}) for rel in decoded_labels]
+            di =  {'<actor&director>': 'Actor&Director', '<artist>': 'Artist', '<musician>': 'Musician', '<politician>': 'Politician', '<scholar>': 'Scholar', '<writer>': 'Writer', '<athlete>': 'Athlete', '<soldier>': 'Soldier', '<businessman>': 'Businessman', '<monarch>': 'Monarch', '<engineer>': 'Engineer', '<docter>': 'Docter', '<judge&lawyer>': 'Judge&Lawyer', '<journalist>': 'Journalist', '<religious>': 'Religious', '<other_occupations>': 'Other_occupations', '<fictional_character>': 'Fictional_character', '<other_human>': 'Other_human', '<continent>': 'Continent', '<country>': 'Country', '<state&province>': 'State&Province', '<city>': 'City', '<county_and_town>': 'County_and_town', '<village>': 'Village', '<administrative_district>': 'Administrative_district', '<traffic_line>': 'Traffic_line', '<street>': 'Street', '<other_gpe>': 'Other_GPE', '<body_of_water>': 'Body_of_water', '<island>': 'Island', '<mountain>': 'Mountain', '<other_natural_location>': 'Other_natural_location', '<manufacturer>': 'Manufacturer', '<record_label>': 'Record_label', '<transport_company>': 'Transport_company', '<broadcasting_company>': 'Broadcasting_company', '<publisher>': 'Publisher', '<other_company>': 'Other_company', '<musical_group>': 'Musical_group', '<political_party>': 'Political_party', '<sports_league>': 'Sports_league', '<sports_team>': 'Sports_team', '<research_institution>': 'Research_institution', '<government_agency>': 'Government_agency', '<army>': 'Army', '<religious_organization>': 'Religious_organization', '<international_organization>': 'International_organization', '<terrorist_organization>': 'Terrorist_organization', '<family>': 'Family', '<other_organization>': 'Other_organization', '<game>': 'Game', '<series>': 'Series', '<magazine>': 'Magazine', '<newspaper>': 'Newspaper', '<software>': 'Software', '<hardware>': 'Hardware', '<brand>': 'Brand', '<plane>': 'Plane', '<car>': 'Car', '<ship>': 'Ship', '<food>': 'Food', '<other_product>': 'Other_product', '<film>': 'Film', '<musical_work>': 'Musical_work', '<television_work>': 'Television_work', '<written_work>': 'Written_work', '<drama>': 'Drama', '<painting>': 'Painting', '<style>': 'Style', '<other_art>': 'Other_art', '<military_operation>': 'Military_operation', '<sports_event>': 'Sports_event', '<contest>': 'Contest', '<play>': 'Play', '<movement>': 'Movement', '<ceremony_or_festival>': 'Ceremony_or_festival', '<other_event>': 'Other_event', '<school>': 'School', '<community>': 'Community', '<theatre>': 'Theatre', '<station>': 'Station', '<park>': 'Park', '<bridge>': 'Bridge', '<airport>': 'Airport', '<museum>': 'Museum', '<church>': 'Church', '<cemetery>': 'Cemetery', '<hospital>': 'Hospital', '<sports_venues>': 'Sports_venues', '<square>': 'Square', '<bank>': 'Bank', '<dam>': 'Dam', '<palace>': 'Palace', '<exchange>': 'Exchange', '<base>': 'Base', '<other_building>': 'Other_building', '<position>': 'Position', '<species>': 'Species', '<language>': 'Language', '<ethnicity>': 'Ethnicity', '<award>': 'Award', '<record_chart>': 'Record_chart', '<religion>': 'Religion', '<website>': 'Website', '<law&policy>': 'Law&Policy', '<academic_discipline>': 'Academic_discipline', '<television_network>': 'Television_network', '<disease>': 'Disease', '<chemical_and_biological>': 'Chemical_and_biological', '<political_ideology>': 'Political_ideology', '<treaty>': 'Treaty', '<concept>': 'Concept', '<natural_phenomenon>': 'Natural_phenomenon', '<method>': 'Method', '<other_misc>': 'Other_MISC', '<sports_season>': 'Sports_season', '<period>': 'Period', '<time>': 'Time', '<number>': 'Number', '<subj>': 'Subj', '<obj>':'Obj'}
+            return [extract_triplets_typed(rel,di) for rel in decoded_preds], [extract_triplets_typed(rel,di) for rel in decoded_labels]
         return [extract_triplets(rel) for rel in decoded_preds], [extract_triplets(rel) for rel in decoded_labels]
 
     def generate_samples(self,
@@ -532,7 +397,7 @@ class BasePLModule(pl.LightningModule):
                 scores, precision, recall, f1 = re_score([item for pred in output for item in pred['predictions']], [item for pred in output for item in pred['labels']], list(relations_nyt.values()), "strict")
             elif self.hparams.dataset_name.split('/')[-1] == 'docred_typed.py':
                 relations_docred = {"P6": "head of government", "P17": "country", "P19": "place of birth", "P20": "place of death", "P22": "father", "P25": "mother", "P26": "spouse", "P27": "country of citizenship", "P30": "continent", "P31": "instance of", "P35": "head of state", "P36": "capital", "P37": "official language", "P39": "position held", "P40": "child", "P50": "author", "P54": "member of sports team", "P57": "director", "P58": "screenwriter", "P69": "educated at", "P86": "composer", "P102": "member of political party", "P108": "employer", "P112": "founded by", "P118": "league", "P123": "publisher", "P127": "owned by", "P131": "located in the administrative territorial entity", "P136": "genre", "P137": "operator", "P140": "religion", "P150": "contains administrative territorial entity", "P155": "follows", "P156": "followed by", "P159": "headquarters location", "P161": "cast member", "P162": "producer", "P166": "award received", "P170": "creator", "P171": "parent taxon", "P172": "ethnic group", "P175": "performer", "P176": "manufacturer", "P178": "developer", "P179": "series", "P190": "sister city", "P194": "legislative body", "P205": "basin country", "P206": "located in or next to body of water", "P241": "military branch", "P264": "record label", "P272": "production company", "P276": "location", "P279": "subclass of", "P355": "subsidiary", "P361": "part of", "P364": "original language of work", "P400": "platform", "P403": "mouth of the watercourse", "P449": "original network", "P463": "member of", "P488": "chairperson", "P495": "country of origin", "P527": "has part", "P551": "residence", "P569": "date of birth", "P570": "date of death", "P571": "inception", "P576": "dissolved, abolished or demolished", "P577": "publication date", "P580": "start time", "P582": "end time", "P585": "point in time", "P607": "conflict", "P674": "characters", "P676": "lyrics by", "P706": "located on terrain feature", "P710": "participant", "P737": "influenced by", "P740": "location of formation", "P749": "parent organization", "P800": "notable work", "P807": "separated from", "P840": "narrative location", "P937": "work location", "P1001": "applies to jurisdiction", "P1056": "product or material produced", "P1198": "unemployment rate", "P1336": "territory claimed by", "P1344": "participant of", "P1365": "replaces", "P1366": "replaced by", "P1376": "capital of", "P1412": "languages spoken, written or signed", "P1441": "present in work", "P3373": "sibling"}
-                scores, precision, recall, f1 = re_score([item for pred in output for item in pred['predictions']], [item for pred in output for item in pred['labels']], list(relations_docred.values()), "strict")            
+                scores, precision, recall, f1 = re_score([item for pred in output for item in pred['predictions']], [item for pred in output for item in pred['labels']], list(relations_docred.values()))            
             else:
                 scores, precision, recall, f1 = re_score([item for pred in output for item in pred['predictions']], [item for pred in output for item in pred['labels']], ['killed by', 'residence', 'location', 'headquarters location', 'employer'])
             self.log('val_prec_micro', precision)

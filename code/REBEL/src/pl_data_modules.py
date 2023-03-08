@@ -1,6 +1,5 @@
+from pyexpat import model
 from typing import Any, Union, List, Optional
-from numpy import sort
-import numpy as np
 
 from omegaconf import DictConfig
 
@@ -64,17 +63,18 @@ class BasePLDataModule(pl.LightningDataModule):
         self.conf = conf
         self.tokenizer = tokenizer
         self.model = model
+
         if conf.relations_file:
             self.datasets = load_dataset(conf.dataset_name, data_files={'train': conf.train_file, 'dev': conf.validation_file, 'test': conf.test_file, 'relations': conf.relations_file})
         else:
             self.datasets = load_dataset(conf.dataset_name, data_files={'train': conf.train_file, 'dev': conf.validation_file, 'test': conf.test_file})
         set_caching_enabled(True)
-        self.prefix = conf.source_prefix if conf.source_prefix is not  None else ""
+        # print("train_datasets", self.datasets['train'][0:10])
+        self.prefix = conf.source_prefix if conf.source_prefix is not None else ""
         self.column_names = self.datasets["train"].column_names
         # self.source_lang, self.target_lang, self.text_column, self.summary_column = None, None, None, None
         self.text_column = conf.text_column
         self.summary_column = conf.target_column
-        self.candidate_column = conf.candidate_column
         self.max_target_length = conf.max_target_length
         self.padding = "max_length" if conf.pad_to_max_length else False
 
@@ -99,6 +99,7 @@ class BasePLDataModule(pl.LightningDataModule):
             load_from_cache_file=not self.conf.overwrite_cache,
             cache_file_name=self.conf.train_file.replace('.jsonl', '-') + self.conf.dataset_name.split('/')[-1].replace('.py', '.cache'),
         )
+        # print("self.train_dataset", self.train_dataset[0:10])
 
         if self.conf.do_eval:
             max_target_length = self.conf.val_max_target_length
@@ -173,60 +174,23 @@ class BasePLDataModule(pl.LightningDataModule):
 
         inputs = examples[self.text_column]
         targets = examples[self.summary_column]
-        candidates = examples[self.candidate_column]
-        batch_size = len(inputs)
-        idx = 0
-        for item in candidates:
-            zip_a_b = zip(item["sent"], item["score"])
-            sorted_zip = sorted(zip_a_b, key= lambda x:x[1],reverse=True)
-            sorted_sent, sorted_score = zip(*sorted_zip)
-            item["sent"] = list(sorted_sent)
-            # item["sent"].insert(0, targets)
-            item["score"] = list(sorted_score)
         inputs = [self.prefix + inp for inp in inputs]
-        candidate_inputs = [sent  for item in candidates for sent in item["sent"]]
         model_inputs = self.tokenizer(inputs, max_length=self.conf.max_source_length, padding=self.padding, truncation=True)
-        model_candidate_inputs = self.tokenizer(candidate_inputs, max_length = self.conf.max_target_length, padding = True, truncation = True)
-        model_candidate_inputs["input_ids"] = np.array(model_candidate_inputs["input_ids"]).reshape(batch_size, self.conf.num_beams+1,-1).tolist()
-        model_candidate_inputs["attention_mask"] = np.array(model_candidate_inputs["attention_mask"]).reshape(batch_size, self.conf.num_beams+1, -1).tolist()
-        
-        # # Setup the tokenizer for targets
-        # with self.tokenizer.as_target_tokenizer():
-        #     labels = self.tokenizer(targets, max_length=self.conf.max_target_length, padding=self.padding, truncation=True)
+        # Setup the tokenizer for targets
+        with self.tokenizer.as_target_tokenizer():
+            labels = self.tokenizer(targets, max_length=self.max_target_length, padding=self.padding, truncation=True)
 
-        # # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
-        # # padding in the loss.
-        # if self.padding == "max_length" and self.conf.ignore_pad_token_for_loss:
-        #     labels["input_ids"] = [
-        #         [(l if l != self.tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
-        #     ]
+        # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
+        # padding in the loss.
+        if self.padding == "max_length" and self.conf.ignore_pad_token_for_loss:
+            labels["input_ids"] = [
+                [(l if l != self.tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
+            ]
+        # temp_1 = self.tokenizer.batch_decode(model_inputs["input_ids"])
+        # temp_2 = self.tokenizer.batch_decode(labels["input_ids"])
         # model_inputs["decoder_input_ids"] = labels["input_ids"]
         # model_inputs["decoder_attention_mask"] = labels["attention_mask"]
         # model_inputs["labels"] = shift_tokens_left(labels["input_ids"], self.tokenizer.pad_token_id)
-        model_inputs["labels"] = [item[0] for item in model_candidate_inputs["input_ids"]]
-        model_inputs["candidate_input_ids"] = model_candidate_inputs["input_ids"]
-        model_inputs["candidate_attention_mask"] = model_candidate_inputs["attention_mask"]
+        model_inputs["labels"] = labels["input_ids"]
+        # print("model_inputs", type(model_inputs))
         return model_inputs
-
-    # def preprocess_function(self, examples):
-
-    #     inputs = examples[self.text_column]
-    #     targets = examples[self.summary_column]
-    #     inputs = [self.prefix + inp for inp in inputs]
-    #     model_inputs = self.tokenizer(inputs, max_length=self.conf.max_source_length, padding=self.padding, truncation=True)
-
-    #     # Setup the tokenizer for targets
-    #     with self.tokenizer.as_target_tokenizer():
-    #         labels = self.tokenizer(targets, max_length=self.max_target_length, padding=self.padding, truncation=True)
-
-    #     # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
-    #     # padding in the loss.
-    #     if self.padding == "max_length" and self.conf.ignore_pad_token_for_loss:
-    #         labels["input_ids"] = [
-    #             [(l if l != self.tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
-    #         ]
-    #     # model_inputs["decoder_input_ids"] = labels["input_ids"]
-    #     # model_inputs["decoder_attention_mask"] = labels["attention_mask"]
-    #     # model_inputs["labels"] = shift_tokens_left(labels["input_ids"], self.tokenizer.pad_token_id)
-    #     model_inputs["labels"] = labels["input_ids"]
-    #     return model_inputs

@@ -1,0 +1,4 @@
+defaults:
+  - train: docred_train
+  - model: rebel_model
+  - data: docred_data

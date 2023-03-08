@@ -2,16 +2,11 @@
 
 num_workers: 6
 dataset_name: '/home/weimin/rebel/datasets/docred_typed.py'
-# dataset_name: '/home/weimin/rebel/datasets/docred.py'
 text_column: 'context'
 target_column: 'triplets'
-candidate_column: 'candidates'
-train_file: '/home/weimin/rebel/data/docred/train_joint.json'
-validation_file: '/home/weimin/rebel/data/docred/dev_joint.json'
-test_file: '/home/weimin/rebel/data/docred/test_joint.json'
-# train_file: '/home/weimin/rebel/data/docred_joint/train_joint.json'
-# validation_file: '/home/weimin/rebel/data/docred_joint/dev_joint.json'
-# test_file: '/home/weimin/rebel/data/docred_joint/test_joint.json'
+train_file: '/home/weimin/rebel/data/docred_joint/train_joint.json'
+validation_file: '/home/weimin/rebel/data/docred_joint/dev_joint.json'
+test_file: '/home/weimin/rebel/data/docred_joint/test_joint.json'
 overwrite_cache: False
 preprocessing_num_workers: 
 max_source_length: 1024
@@ -21,7 +16,7 @@ pad_to_max_length: False
 max_train_samples:
 max_val_samples: 
 max_test_samples: 
-num_beams: 16
+num_beams: 
 eval_beams: 5
 ignore_pad_token_for_loss: True
 source_prefix: 

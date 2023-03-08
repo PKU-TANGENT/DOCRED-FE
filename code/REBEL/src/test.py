@@ -57,10 +57,6 @@ relations = {'no_relation': 'no relation',
 def train(conf: omegaconf.DictConfig) -> None:
     pl.seed_everything(conf.seed)
 
-    print("-------------------------------------------------------------------")
-    print(omegaconf.OmegaConf.to_yaml(conf))
-    print("-------------------------------------------------------------------")
-
     config = AutoConfig.from_pretrained(
         conf.config_name if conf.config_name else conf.model_name_or_path,
         decoder_start_token_id = 0,
@@ -85,7 +81,7 @@ def train(conf: omegaconf.DictConfig) -> None:
     if conf.dataset_name.split('/')[-1] == 'nyt_typed.py':
         tokenizer.add_tokens(['<loc>', '<org>', '<per>'], special_tokens = True)
     if conf.dataset_name.split('/')[-1] == 'docred_typed.py':
-        tokenizer.add_tokens(['<loc>', '<misc>', '<per>', '<num>', '<time>', '<org>'], special_tokens = True)
+        tokenizer.add_tokens(['<actor&director>', '<artist>', '<musician>', '<politician>', '<scholar>', '<writer>', '<athlete>', '<soldier>', '<businessman>', '<monarch>', '<engineer>', '<docter>', '<judge&lawyer>', '<journalist>', '<religious>', '<other_occupations>', '<fictional_character>', '<other_human>', '<continent>', '<country>', '<state&province>', '<city>', '<county_and_town>', '<village>', '<administrative_district>', '<traffic_line>', '<street>', '<other_gpe>', '<body_of_water>', '<island>', '<mountain>', '<other_natural_location>', '<manufacturer>', '<record_label>', '<transport_company>', '<broadcasting_company>', '<publisher>', '<other_company>', '<musical_group>', '<political_party>', '<sports_league>', '<sports_team>', '<research_institution>', '<government_agency>', '<army>', '<religious_organization>', '<international_organization>', '<terrorist_organization>', '<family>', '<other_organization>', '<game>', '<series>', '<magazine>', '<newspaper>', '<software>', '<hardware>', '<brand>', '<plane>', '<car>', '<ship>', '<food>', '<other_product>', '<film>', '<musical_work>', '<television_work>', '<written_work>', '<drama>', '<painting>', '<style>', '<other_art>', '<military_operation>', '<sports_event>', '<contest>', '<play>', '<movement>', '<ceremony_or_festival>', '<other_event>', '<school>', '<community>', '<theatre>', '<station>', '<park>', '<bridge>', '<airport>', '<museum>', '<church>', '<cemetery>', '<hospital>', '<sports_venues>', '<square>', '<bank>', '<dam>', '<palace>', '<exchange>', '<base>', '<other_building>', '<position>', '<species>', '<language>', '<ethnicity>', '<award>', '<record_chart>', '<religion>', '<website>', '<law&policy>', '<academic_discipline>', '<television_network>', '<disease>', '<chemical_and_biological>', '<political_ideology>', '<treaty>', '<concept>', '<natural_phenomenon>', '<method>', '<other_misc>', '<sports_season>', '<period>', '<time>', '<number>'], special_tokens = True)
 
     model = AutoModelForSeq2SeqLM.from_pretrained(
         conf.model_name_or_path,
@@ -100,7 +96,6 @@ def train(conf: omegaconf.DictConfig) -> None:
     # main module declaration
     pl_module = BasePLModule(conf, config, tokenizer, model)
     pl_module = pl_module.load_from_checkpoint(checkpoint_path = conf.checkpoint_path, config = config, tokenizer = tokenizer, model = model)
-    pl_module.hparams.eval_beams = conf.eval_beams
     # pl_module.hparams.predict_with_generate = True
     pl_module.hparams.test_file = pl_data_module.conf.test_file
     # trainer

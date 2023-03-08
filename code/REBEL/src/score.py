@@ -140,182 +140,6 @@ def score(key, prediction, verbose=False):
     return prec_micro, recall_micro, f1_micro
 
 '''Adapted from: https://github.com/btaille/sincere/blob/6f5472c5aeaf7ef7765edf597ede48fdf1071712/code/utils/evaluation.py'''
-# def re_score(pred_relations, gt_relations, relation_types, mode="boundaries"):
-#     """Evaluate RE predictions
-#     Args:
-#         pred_relations (list) :  list of list of predicted relations (several relations in each sentence)
-#         gt_relations (list) :    list of list of ground truth relations
-#             rel = { "head": (start_idx (inclusive), end_idx (exclusive)),
-#                     "tail": (start_idx (inclusive), end_idx (exclusive)),
-#                     "head_type": ent_type,
-#                     "tail_type": ent_type,
-#                     "type": rel_type}
-#         vocab (Vocab) :         dataset vocabulary
-#         mode (str) :            in 'strict' or 'boundaries' """
-
-#     assert mode in ["strict", "boundaries"]
-#     relation_types = relations if relation_types is None else relation_types
-#     # relation_types = [v for v in relation_types if not v == "None"]
-#     scores = {rel: {"tp": 0, "fp": 0, "fn": 0} for rel in relation_types + ["ALL"]}
-
-#     # pred_relation_1 = pred_relations[0::5]
-#     # pred_relation_2 = pred_relations[1::5]
-#     # pred_relation_3 = pred_relations[2::5]
-#     # pred_relation_4 = pred_relations[3::5]
-#     # pred_relation_5 = pred_relations[4::5]
-#     # Count GT relations and Predicted relations
-#     n_sents = len(gt_relations)
-#     n_rels = sum([len([rel for rel in sent]) for sent in gt_relations])
-#     # n_found = sum([len([rel for rel in sent]) for sent in pred_relations])
-#     n_found = sum([len([rel for rel in sent]) for sent in pred_relations])/5
-
-#     # Count TP, FP and FN per type
-#     for pred_sent, gt_sent in zip(pred_relations, gt_relations):
-#         for rel_type in relation_types:
-#             # strict mode takes argument types into account
-#             if mode == "strict":
-#                 pred_rels = {(rel["head"], rel["head_type"], rel["tail"], rel["tail_type"]) for rel in pred_sent if
-#                              rel["type"] == rel_type}
-#                 gt_rels = {(rel["head"], rel["head_type"], rel["tail"], rel["tail_type"]) for rel in gt_sent if
-#                            rel["type"] == rel_type}
-
-#             # boundaries mode only takes argument spans into account
-#             elif mode == "boundaries":
-#                 pred_rels = {(rel["head"], rel["tail"]) for rel in pred_sent if rel["type"] == rel_type}
-#                 gt_rels = {(rel["head"], rel["tail"]) for rel in gt_sent if rel["type"] == rel_type}
-
-#             scores[rel_type]["tp"] += len(pred_rels & gt_rels)
-#             scores[rel_type]["fp"] += len(pred_rels - gt_rels)
-#             scores[rel_type]["fn"] += len(gt_rels - pred_rels)
-    
-#     # Count TP, FP and FN per type
-#     # beam_nums
-#     # beam_nums = 16
-#     # for i in range(n_sents):
-#     #     max_id = 0
-#     #     max_f1 = 0
-#     #     for j in range(beam_nums):
-#     #         tp = 0
-#     #         fp = 0
-#     #         fn = 0
-#     #         for rel_type in relation_types:
-#     #             if mode == "strict":
-#     #                 # beam_nums
-#     #                 pred_rels = {(rel["head"], rel["head_type"], rel["tail"], rel["tail_type"]) for rel in pred_relations[i*beam_nums+j] if
-#     #                             rel["type"] == rel_type}
-#     #                 gt_rels = {(rel["head"], rel["head_type"], rel["tail"], rel["tail_type"]) for rel in gt_relations[i] if
-#     #                         rel["type"] == rel_type}
-
-#     #             # boundaries mode only takes argument spans into account
-#     #             elif mode == "boundaries":
-#     #                 pred_rels = {(rel["head"], rel["tail"]) for rel in pred_relations[i*beam_nums+j] if rel["type"] == rel_type}
-#     #                 gt_rels = {(rel["head"], rel["tail"]) for rel in gt_relations[i] if rel["type"] == rel_type}
-#     #             tp += len(pred_rels & gt_rels)
-#     #             fp += len(pred_rels-gt_rels)
-#     #             fn += len(gt_rels-pred_rels)
-#     #         if tp:
-#     #             precision = 100 * tp / (tp + fp)
-#     #             recall = 100 * tp / (tp + fn)
-#     #             f1 = 2 * precision * recall / (precision + recall)
-
-#     #         else:
-#     #             precision, recall, f1 = 0, 0, 0
-#     #         if f1>max_f1:
-#     #             max_f1 = f1
-#     #             max_id = j
-#     #     for rel_type in relation_types:
-#     #         # strict mode takes argument types into account
-#     #         if mode == "strict":
-#     #             pred_rels = {(rel["head"], rel["head_type"], rel["tail"], rel["tail_type"]) for rel in pred_relations[i*beam_nums+max_id] if
-#     #                          rel["type"] == rel_type}
-#     #             gt_rels = {(rel["head"], rel["head_type"], rel["tail"], rel["tail_type"]) for rel in gt_relations[i] if
-#     #                        rel["type"] == rel_type}
-
-#     #         # boundaries mode only takes argument spans into account
-#     #         elif mode == "boundaries":
-#     #             pred_rels = {(rel["head"], rel["tail"]) for rel in pred_relations[i*beam_nums+max_id] if rel["type"] == rel_type}
-#     #             gt_rels = {(rel["head"], rel["tail"]) for rel in gt_relations[i] if rel["type"] == rel_type}
-
-#     #         scores[rel_type]["tp"] += len(pred_rels & gt_rels)
-#     #         scores[rel_type]["fp"] += len(pred_rels - gt_rels)
-#     #         scores[rel_type]["fn"] += len(gt_rels - pred_rels)
-            
-
-#     # Compute per relation Precision / Recall / F1
-#     for rel_type in scores.keys():
-#         if scores[rel_type]["tp"]:
-#             scores[rel_type]["p"] = 100 * scores[rel_type]["tp"] / (scores[rel_type]["fp"] + scores[rel_type]["tp"])
-#             scores[rel_type]["r"] = 100 * scores[rel_type]["tp"] / (scores[rel_type]["fn"] + scores[rel_type]["tp"])
-#         else:
-#             scores[rel_type]["p"], scores[rel_type]["r"] = 0, 0
-
-#         if not scores[rel_type]["p"] + scores[rel_type]["r"] == 0:
-#             scores[rel_type]["f1"] = 2 * scores[rel_type]["p"] * scores[rel_type]["r"] / (
-#                     scores[rel_type]["p"] + scores[rel_type]["r"])
-#         else:
-#             scores[rel_type]["f1"] = 0
-
-#     # Compute micro F1 Scores
-#     tp = sum([scores[rel_type]["tp"] for rel_type in relation_types])
-#     fp = sum([scores[rel_type]["fp"] for rel_type in relation_types])
-#     fn = sum([scores[rel_type]["fn"] for rel_type in relation_types])
-
-#     if tp:
-#         precision = 100 * tp / (tp + fp)
-#         recall = 100 * tp / (tp + fn)
-#         f1 = 2 * precision * recall / (precision + recall)
-
-#     else:
-#         precision, recall, f1 = 0, 0, 0
-
-#     scores["ALL"]["p"] = precision
-#     scores["ALL"]["r"] = recall
-#     scores["ALL"]["f1"] = f1
-#     scores["ALL"]["tp"] = tp
-#     scores["ALL"]["fp"] = fp
-#     scores["ALL"]["fn"] = fn
-
-#     # Compute Macro F1 Scores
-#     scores["ALL"]["Macro_f1"] = np.mean([scores[ent_type]["f1"] for ent_type in relation_types])
-#     scores["ALL"]["Macro_p"] = np.mean([scores[ent_type]["p"] for ent_type in relation_types])
-#     scores["ALL"]["Macro_r"] = np.mean([scores[ent_type]["r"] for ent_type in relation_types])
-
-#     print(f"RE Evaluation in *** {mode.upper()} *** mode")
-
-#     print(
-#         "processed {} sentences with {} relations; found: {} relations; correct: {}.".format(n_sents, n_rels, n_found,
-#                                                                                              tp))
-#     print(
-#         "\tALL\t TP: {};\tFP: {};\tFN: {}".format(
-#             scores["ALL"]["tp"],
-#             scores["ALL"]["fp"],
-#             scores["ALL"]["fn"]))
-#     print(
-#         "\t\t(m avg): precision: {:.2f};\trecall: {:.2f};\tf1: {:.2f} (micro)".format(
-#             precision,
-#             recall,
-#             f1))
-#     print(
-#         "\t\t(M avg): precision: {:.2f};\trecall: {:.2f};\tf1: {:.2f} (Macro)\n".format(
-#             scores["ALL"]["Macro_p"],
-#             scores["ALL"]["Macro_r"],
-#             scores["ALL"]["Macro_f1"]))
-
-#     for rel_type in relation_types:
-#         print("\t{}: \tTP: {};\tFP: {};\tFN: {};\tprecision: {:.2f};\trecall: {:.2f};\tf1: {:.2f};\t{}".format(
-#             rel_type,
-#             scores[rel_type]["tp"],
-#             scores[rel_type]["fp"],
-#             scores[rel_type]["fn"],
-#             scores[rel_type]["p"],
-#             scores[rel_type]["r"],
-#             scores[rel_type]["f1"],
-#             scores[rel_type]["tp"] +
-#             scores[rel_type][
-#                 "fp"]))
-
-#     return scores, precision, recall, f1
-
 def re_score(pred_relations, gt_relations, relation_types, mode="boundaries"):
     """Evaluate RE predictions
     Args:
@@ -330,6 +154,7 @@ def re_score(pred_relations, gt_relations, relation_types, mode="boundaries"):
         mode (str) :            in 'strict' or 'boundaries' """
 
     assert mode in ["strict", "boundaries"]
+    # print("pred_relations", pred_relations)
     relation_types = relations if relation_types is None else relation_types
     # relation_types = [v for v in relation_types if not v == "None"]
     scores = {rel: {"tp": 0, "fp": 0, "fn": 0} for rel in relation_types + ["ALL"]}
@@ -341,6 +166,8 @@ def re_score(pred_relations, gt_relations, relation_types, mode="boundaries"):
 
     # Count TP, FP and FN per type
     for pred_sent, gt_sent in zip(pred_relations, gt_relations):
+        # print("pred_sent", pred_sent)
+        # print("gt_sent", gt_sent)
         for rel_type in relation_types:
             # strict mode takes argument types into account
             if mode == "strict":
@@ -432,6 +259,7 @@ def re_score(pred_relations, gt_relations, relation_types, mode="boundaries"):
                 "fp"]))
 
     return scores, precision, recall, f1
+
 
 if __name__ == "__main__":
     # Parse the arguments from stdin

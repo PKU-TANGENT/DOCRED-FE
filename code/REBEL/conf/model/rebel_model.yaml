@@ -1,9 +1,9 @@
 # @package _global_
 
-# model_name_or_path: '/home/weimin/rebel/src/outputs/2022-05-29/docred_joint/experiments/docred/epoch=16-step=1597.ckpt'
+# model_name_or_path: '/home/weimin/rebel/model/Rebel-large'
 # config_name: '/home/weimin/rebel/model/Rebel-large'
 # tokenizer_name: '/home/weimin/rebel/model/Rebel-large'
-model_name_or_path: '/home/weimin/rebel/model/Rebel-large'
+model_name_or_path: '/home/weimin/rebel/src/outputs/2022-03-29/00-11-08/experiments/docred/epoch=14-step=1499.ckpt'
 config_name: '/home/weimin/rebel/model/Rebel-large'
 tokenizer_name: '/home/weimin/rebel/model/Rebel-large'
 cache_dir: 
