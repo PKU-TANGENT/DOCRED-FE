@@ -1,4 +1,4 @@
-# DocRED
+# DocRED-FE
 Dataset and code for baselines for [DOCRED-FE: A DOCUMENT-LEVEL FINE-GRAINED ENTITY AND RELATION EXTRACTION DATASET]()
 
 Joint entity and relation extraction (JERE) is one of the most
