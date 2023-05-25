@@ -567,7 +567,7 @@ class Config(object):
 
 
 		# 读入实体对对关系的限制
-		pair2rel = json.load(open('/home/weimin/DocRED/code/prepro_data/pair2rel.json', 'r', encoding='utf-8'))
+# 		pair2rel = json.load(open('/home/weimin/DocRED/code/prepro_data/pair2rel.json', 'r', encoding='utf-8'))
 
 		test_result = []
 		total_recall = 0
@@ -674,9 +674,9 @@ class Config(object):
 								# test_result = true_result
         
 
-								if pair2rel[entity_pair][relation]!=0:
-									inlabel = (h_idx, t_idx, r) in label
-									test_result.append( (inlabel, float(predict_re[i,j,r]),  titles[i], self.id2rel[r], index, h_idx, t_idx, r) )
+# 								if pair2rel[entity_pair][relation]!=0:
+# 									inlabel = (h_idx, t_idx, r) in label
+								test_result.append( (inlabel, float(predict_re[i,j,r]),  titles[i], self.id2rel[r], index, h_idx, t_idx, r) )
 
 							# if flag:
 							# 	have_label += 1
