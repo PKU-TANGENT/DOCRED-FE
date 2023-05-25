@@ -168,7 +168,7 @@ class EntityClassificationEvaluator(Evaluator):
 class RelClassificationEvaluator(Evaluator):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.pair2rel = json.load(open("/home/weimin/JEREX/jerex/evaluation/pair2rel.json", 'r', encoding='utf-8'))
+#         self.pair2rel = json.load(open("/home/weimin/JEREX/jerex/evaluation/pair2rel.json", 'r', encoding='utf-8'))
 
     def convert_batch(self, rel_clf, batch: dict):
         batch_size = rel_clf.shape[0]
