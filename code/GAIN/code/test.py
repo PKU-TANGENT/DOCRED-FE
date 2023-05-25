@@ -21,7 +21,7 @@ def test(model, dataloader, modelname, id2rel, input_theta=-1, output=False, is_
     total_recall = 0
     total_steps = len(dataloader)
     
-    pair2rel = json.load(open("/home/weimin/GAIN/pair2rel.json", 'r', encoding='utf-8'))
+#     pair2rel = json.load(open("/home/weimin/GAIN/pair2rel.json", 'r', encoding='utf-8'))
 
     for cur_i, d in enumerate(dataloader):
         print('step: {}/{}'.format(cur_i, total_steps))
@@ -86,9 +86,9 @@ def test(model, dataloader, modelname, id2rel, input_theta=-1, output=False, is_
                             # if (ours and (h_idx, t_idx) in overlap) or not ours:
                             
                             #################################################################################################
-                            if pair2rel[entity_pair][relation] !=0:    
-                                test_result.append((rel_ins in label, float(predict_re[i, j, r]), intrain,
-                                                        title, id2rel[r], index, h_idx, t_idx, r))
+#                             if pair2rel[entity_pair][relation] !=0:    
+                            test_result.append((rel_ins in label, float(predict_re[i, j, r]), intrain,
+                                                    title, id2rel[r], index, h_idx, t_idx, r))
                             #####################################################################################################
 
                         j += 1
