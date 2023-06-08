@@ -19,5 +19,14 @@ experiments we find that:
 ## Cite
 If you use the dataset or the code, please cite this paper:
 ```
+@INPROCEEDINGS{10095786,
+  author={Wang, Hongbo and Xiong, Weimin and Song, Yifan and Zhu, Dawei and Xia, Yu and Li, Sujian},
+  booktitle={ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 
+  title={DocRED-FE: A Document-Level Fine-Grained Entity and Relation Extraction Dataset}, 
+  year={2023},
+  volume={},
+  number={},
+  pages={1-5},
+  doi={10.1109/ICASSP49357.2023.10095786}}
 
 ```
